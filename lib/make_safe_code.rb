@@ -2,7 +2,7 @@ class SafeRuby
   class Sandbox
     class << self
       def run!(code)
-        binding.eval(code)
+        Object.class_eval code
       end
 
       def keep_singleton_methods(klass, singleton_methods)
@@ -28,11 +28,13 @@ class SafeRuby
       def clean_constants
         WhiteList.skip_classes.each do |const|
           # Allow for active record base classes to be in here.
-          next if const.is_a?(ActiveRecord::Base)
+          next unless defined?(const)
 
-          puts "Undefining: #{const}"
+          c = Object.const_get(const)
+          next if c.is_a?(ActiveRecord::Base)
 
-          Object.send(:remove_const, const) if defined?(const)
+
+          Object.send(:remove_const, const)
         end
       end
 
@@ -45,6 +47,24 @@ class SafeRuby
 
           def system(*args)
             raise NoMethodError, "system is unavailable"
+          end
+
+          def fork(*args)
+            raise NoMethodError, "fork unvailable"
+          end
+
+          def thread(*args)
+            raise NoMethodError, "thread unvailable"
+          end
+        end
+
+        Process.class_eval do
+          def fork(*args)
+            raise NoMethodError, "fork unvailable"
+          end
+
+          def thread(*args)
+            raise NoMethodError, "thread unvailable"
           end
         end
         

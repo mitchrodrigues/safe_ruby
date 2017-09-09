@@ -21,6 +21,7 @@ class SafeRuby
               end
       
       writer.write Marshal.dump(result)
+      writer.flush
       writer.close
     }
 
@@ -39,15 +40,25 @@ class SafeRuby
       break
     end
 
-    line = reader.read_nonblock(16000)
-    data =  begin
+    line = ''
+
+    until reader.eof?
+      line += reader.read_nonblock(16000)
+    end
+
+    puts line.length
+
+    data =  nil 
+    Object.class_eval do
+      data = begin
               Marshal.load(line)
-            rescue ArgumentError => e 
-              if e.message =~ /undefined class\/module (.*)$/
-                $1.constantize  
-              end
-              Marshal.load(line)
-            end
+             rescue ArgumentError => e 
+               if e.message =~ /undefined class\/module (.*)$/
+                 $1.constantize  
+               end
+               Marshal.load(line)
+             end
+    end
 
     raise data if data.is_a?(StandardError)
     return data
