@@ -17,6 +17,9 @@ class SafeRuby
   class WhiteList
     class << self
       attr_accessor :allow_active_record_models
+      def skip_classes=(val)
+        @skip_classes = val
+      end
 
       def skip_classes
         @skip_classes ||= []

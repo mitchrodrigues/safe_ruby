@@ -5,9 +5,12 @@ end
 class SafeRuby
   SELF_READ, SELF_WRITE = IO.pipe
 
-  def self.eval(code)
+  def self.run(code)
     reader, writer = IO.pipe
-    pid = fork {      
+
+    ActiveRecord::Base.connection.disconnect!
+    pid = Process.fork {
+      ActiveRecord::Base.connection.reconnect!
       reader.close
       
       result = begin
@@ -17,11 +20,11 @@ class SafeRuby
                 e
               end
       
-
       writer.write Marshal.dump(result)
-      writer.write("\n")
       writer.close
     }
+
+    ActiveRecord::Base.connection.reconnect!
 
     writer.close
     while true
@@ -36,11 +39,18 @@ class SafeRuby
       break
     end
 
-    reader.each_line do |line|
-      data = Marshal.load(line)
-      raise data if data.is_a?(StandardError)
-      return data
-    end
+    line = reader.read_nonblock(16000)
+    data =  begin
+              Marshal.load(line)
+            rescue ArgumentError => e 
+              if e.message =~ /undefined class\/module (.*)$/
+                $1.constantize  
+              end
+              Marshal.load(line)
+            end
+
+    raise data if data.is_a?(StandardError)
+    return data
   end
 
   def self.check(code, expected)
